@@ -6,7 +6,7 @@ OUT_DIR="${BASE_DIR}/outputs"
 OSS_PATH="oss://yisvideo/videos"
 
 SCRIPT="${BASE_DIR}/scripts/diffusion/inference.py"
-CONFIG="${BASE_DIR}/configs/diffusion/inference/256px.py"
+CONFIG="${BASE_DIR}/configs/diffusion/inference/t2i2v_256px.py"
 FIRST_REF="${BASE_DIR}/assets/FIRST_REF.png"
 mkdir -p "$PROMPT_DIR"
 mkdir -p "$OUT_DIR"
@@ -38,8 +38,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
-            --prompt "$(cat "$prompt_file")" \
-            --ref "$FIRST_REF"
+            --prompt "$(cat "$prompt_file")"
     else
         # 后续段：使用上一段 last frame 作为 ref
         torchrun --nproc_per_node 2 --standalone \
