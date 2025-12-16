@@ -38,7 +38,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 100 \
+            --num_frames 96 \
             --prompt "$(cat "$prompt_file")" \
             --ref "$FIRST_REF" \
             --offload True
@@ -49,7 +49,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$CONFIG" \
             --cond_type i2v_head \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 100 \
+            --num_frames 96 \
             --prompt "$(cat "$prompt_file")" \
             --ref "$REF_IMAGE" \
             --offload True
