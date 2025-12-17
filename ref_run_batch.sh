@@ -30,7 +30,16 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
 
     VIDEO_DIR="${OUT_DIR}/video${i}"
     mkdir -p "$VIDEO_DIR"
+    # ---------- 0. 如果视频已存在则跳过 ----------
+    EXISTING_MP4=$(find "$VIDEO_DIR" -name "*.mp4" | head -1)
 
+    if [[ -f "$EXISTING_MP4" ]]; then
+        echo "⏭️  第 ${i} 段视频已存在，跳过生成："
+        echo "     $EXISTING_MP4"
+        REF_IMAGE="${VIDEO_DIR}/last_frame.png"
+        i=$((i+1))
+        continue
+    fi
     # ---------- 1. 生成视频 ----------
     if [[ $i -eq 1 ]]; then
         # 第一段：不带 ref
@@ -38,7 +47,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 84 \
+            --num_frames 96 \
             --prompt "$(cat "$prompt_file")" \
             --offload True
     else
@@ -48,7 +57,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$CONFIG" \
             --cond_type i2v_head \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 84 \
+            --num_frames 96 \
             --prompt "$(cat "$prompt_file")" \
             --ref "$REF_IMAGE" \
             --offload True
