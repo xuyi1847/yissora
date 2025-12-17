@@ -49,6 +49,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             --save-dir "$VIDEO_DIR" \
             --num_frames 84 \
             --prompt "$(cat "$prompt_file")" \
+            --motion-score 7 \
             --offload True
     else
         # 后续段：使用上一段 last frame 作为 ref
@@ -60,6 +61,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             --num_frames 84 \
             --prompt "$(cat "$prompt_file")" \
             --ref "$REF_IMAGE" \
+            --motion-score 7 \
             --offload True
     fi
 
