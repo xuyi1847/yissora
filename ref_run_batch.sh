@@ -47,7 +47,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 96 \
+            --num_frames 84 \
             --prompt "$(cat "$prompt_file")" \
             --offload True
     else
@@ -55,8 +55,9 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
         torchrun --nproc_per_node 2 --standalone \
             "$SCRIPT" \
             "$CONFIG" \
+            --cond_type i2v_head \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 96 \
+            --num_frames 84 \
             --prompt "$(cat "$prompt_file")" \
             --ref "$REF_IMAGE" \
             --offload True
