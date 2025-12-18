@@ -48,10 +48,10 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
             --num_frames 96 \
+            --aspect_ratio 9:16 \
             --ref "$FIRST_REF" \
             --prompt "$(cat "$prompt_file")" \
-            --motion-score 7 \
-            --offload True
+            --motion-score 6
     else
         # 后续段：使用上一段 last frame 作为 ref
         torchrun --nproc_per_node 2 --standalone \
@@ -60,8 +60,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             --save-dir "$VIDEO_DIR" \
             --num_frames 96 \
             --prompt "$(cat "$prompt_file")" \
-            --motion-score 7 \
-            --offload True
+            --motion-score 6
     fi
     # else
     #     # 后续段：使用上一段 last frame 作为 ref
