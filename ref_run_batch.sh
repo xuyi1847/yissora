@@ -12,11 +12,20 @@ FIRST_REF="${BASE_DIR}/assets/WechatIMG1176.jpg"
 NUM_FRAMES=81
 FPS=16
 # 2x A100: sequence parallel 2, tensor parallel 1; VAE 2-way TP
-CFG_PARALLEL="plugin_config.sp_size=2 plugin_config.tp_size=1 plugin_config_ae.tp_size=2 plugin_config_ae.sp_size=1"
+PARALLEL_ARGS=(
+  --plugin_config.sp_size 2
+  --plugin_config.tp_size 1
+  --plugin_config_ae.tp_size 2
+  --plugin_config_ae.sp_size 1
+)
 # For speed, slightly fewer steps; adjust if质量不够
-CFG_SAMPLING="sampling_option.num_steps=40 sampling_option.num_frames=${NUM_FRAMES} sampling_option.aspect_ratio=9:16"
-# 保持 t2i2v 分辨率 768
-CFG_MISC="fps_save=${FPS} motion_score=6"
+SAMPLING_ARGS=(
+  --sampling_option.num_steps 40
+  --sampling_option.num_frames "${NUM_FRAMES}"
+  --sampling_option.aspect_ratio 9:16
+  --fps_save "${FPS}"
+  --motion_score 6
+)
 mkdir -p "$PROMPT_DIR"
 mkdir -p "$OUT_DIR"
 
@@ -58,7 +67,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             --save-dir "$VIDEO_DIR" \
             --prompt "$(cat "$prompt_file")" \
             --ref "$FIRST_REF" \
-            --cfg-options ${CFG_PARALLEL} ${CFG_SAMPLING} ${CFG_MISC}
+            "${PARALLEL_ARGS[@]}" "${SAMPLING_ARGS[@]}"
     else
         # 后续段：使用上一段 last frame 作为 ref
         torchrun --nproc_per_node 2 --standalone \
@@ -66,7 +75,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
             --prompt "$(cat "$prompt_file")" \
-            --cfg-options ${CFG_PARALLEL} ${CFG_SAMPLING} ${CFG_MISC}
+            "${PARALLEL_ARGS[@]}" "${SAMPLING_ARGS[@]}"
     fi
     # else
     #     # 后续段：使用上一段 last frame 作为 ref
