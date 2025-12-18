@@ -47,7 +47,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 120 \
+            --num_frames 96 \
             --ref "$FIRST_REF" \
             --prompt "$(cat "$prompt_file")" \
             --motion-score 7 \
@@ -58,7 +58,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 120 \
+            --num_frames 96 \
             --prompt "$(cat "$prompt_file")" \
             --motion-score 7 \
             --offload True
