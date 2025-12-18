@@ -247,6 +247,10 @@ def refine_prompts(prompts: list[str], retry_times: int = 3, type: str = "t2v", 
         image_paths = [None] * len(prompts)
     refined_prompts = []
     for prompt, image_path in zip(prompts, image_paths):
-        refined_prompt = refine_prompt(prompt, retry_times=retry_times, type=type, image_path=image_path)
+        try:
+            refined_prompt = refine_prompt(prompt, retry_times=retry_times, type=type, image_path=image_path)
+        except Exception as e:  # noqa: BLE001
+            print(f"[prompt_refine] refinement failed, fallback to original prompt. err={e}")
+            refined_prompt = prompt
         refined_prompts.append(refined_prompt)
     return refined_prompts
