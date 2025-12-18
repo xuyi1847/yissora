@@ -1,26 +1,8 @@
 import base64
 import os
 from mimetypes import guess_type
-
-from openai import OpenAI, AzureOpenAI
-
-
-def get_openai_client():
-    """Return OpenAI client and model name, supporting Azure-compatible setup."""
-    azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
-    if azure_endpoint:
-        api_key = os.environ.get("AZURE_OPENAI_KEY")
-        if api_key is None:
-            raise ValueError("AZURE_OPENAI_KEY is required when AZURE_OPENAI_ENDPOINT is set")
-        api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2023-12-01-preview")
-        deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-        client = AzureOpenAI(api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint)
-        model = deployment
-    else:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), base_url=os.environ.get("OPENAI_BASE_URL"))
-        model = os.environ.get("OPENAI_MODEL", "gpt-4o")
-    return client, model
-
+from openai import AzureOpenAI
+from openai import OpenAI
 
 sys_prompt_t2v = """You are part of a team of bots that creates videos. The workflow is that you first create a caption of the video, and then the assistant bot will generate the video based on the caption. You work with an assistant bot that will draw anything you say.
 
@@ -79,7 +61,12 @@ Output format:
 
 User input:
 """
-
+def init_client():
+    return AzureOpenAI(
+        api_key="993b1a85094649778ce83003a5a5ad18",
+        api_version="2024-02-01",
+        azure_endpoint="https://aismwus3.openai.azure.com"
+    )
 
 def image_to_url(image_path):
     mime_type, _ = guess_type(image_path)
@@ -95,8 +82,7 @@ def refine_prompt(prompt: str, retry_times: int = 3, type: str = "t2v", image_pa
     Refine a prompt to a format that can be used by the model for inference
     """
 
-    client, model_name = get_openai_client()
-
+    client = init_client()
     text = prompt.strip()
     response = None
     for i in range(retry_times):
@@ -133,7 +119,7 @@ def refine_prompt(prompt: str, retry_times: int = 3, type: str = "t2v", image_pa
                         "content": f'Create an imaginative video descriptive caption or modify an earlier caption in ENGLISH for the user input: " {text} "',
                     },
                 ],
-                model=model_name,  # glm-4-plus and gpt-4o have be tested
+                model="gpt4o",  # glm-4-plus and gpt4o have be tested
                 temperature=0.01,
                 top_p=0.7,
                 stream=False,
@@ -164,7 +150,7 @@ def refine_prompt(prompt: str, retry_times: int = 3, type: str = "t2v", image_pa
                         "content": f'Create an imaginative image descriptive caption or modify an earlier caption in ENGLISH for the user input: " {text} "',
                     },
                 ],
-                model=model_name,  # glm-4-plus and gpt-4o have be tested
+                model="gpt4o",  # glm-4-plus and gpt4o have be tested
                 temperature=0.01,
                 top_p=0.7,
                 stream=False,
@@ -172,7 +158,7 @@ def refine_prompt(prompt: str, retry_times: int = 3, type: str = "t2v", image_pa
             )
         elif type == "i2v":
             response = client.chat.completions.create(
-                model=model_name,
+                model="gpt4o",
                 messages=[
                     {"role": "system", "content": f"{sys_prompt_i2v}"},
                     {
@@ -229,7 +215,7 @@ def refine_prompt(prompt: str, retry_times: int = 3, type: str = "t2v", image_pa
                         "content": f"{text}",
                     },
                 ],
-                model="gpt-4o",  # glm-4-plus and gpt-4o have be tested
+                model="gpt4o",  # glm-4-plus and gpt4o have be tested
                 temperature=0.01,
                 top_p=0.7,
                 stream=False,
@@ -247,10 +233,6 @@ def refine_prompts(prompts: list[str], retry_times: int = 3, type: str = "t2v", 
         image_paths = [None] * len(prompts)
     refined_prompts = []
     for prompt, image_path in zip(prompts, image_paths):
-        try:
-            refined_prompt = refine_prompt(prompt, retry_times=retry_times, type=type, image_path=image_path)
-        except Exception as e:  # noqa: BLE001
-            print(f"[prompt_refine] refinement failed, fallback to original prompt. err={e}")
-            refined_prompt = prompt
+        refined_prompt = refine_prompt(prompt, retry_times=retry_times, type=type, image_path=image_path)
         refined_prompts.append(refined_prompt)
     return refined_prompts
