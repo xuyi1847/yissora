@@ -7,7 +7,7 @@ OSS_PATH="oss://yisvideo/videos"
 
 SCRIPT="${BASE_DIR}/scripts/diffusion/inference.py"
 CONFIG="${BASE_DIR}/configs/diffusion/inference/t2i2v_768px.py"
-FIRST_REF="${BASE_DIR}/assets/FIRST_REF.png"
+FIRST_REF="${BASE_DIR}/assets/WechatIMG1176.jpg"
 mkdir -p "$PROMPT_DIR"
 mkdir -p "$OUT_DIR"
 
@@ -47,7 +47,8 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 84 \
+            --num_frames 120 \
+            --ref "$FIRST_REF" \
             --prompt "$(cat "$prompt_file")" \
             --motion-score 7 \
             --offload True
@@ -56,14 +57,25 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
         torchrun --nproc_per_node 2 --standalone \
             "$SCRIPT" \
             "$CONFIG" \
-            --cond_type i2v_head \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 84 \
+            --num_frames 120 \
             --prompt "$(cat "$prompt_file")" \
-            --ref "$REF_IMAGE" \
             --motion-score 7 \
             --offload True
     fi
+    # else
+    #     # 后续段：使用上一段 last frame 作为 ref
+    #     torchrun --nproc_per_node 2 --standalone \
+    #         "$SCRIPT" \
+    #         "$CONFIG" \
+    #         --cond_type i2v_head \
+    #         --save-dir "$VIDEO_DIR" \
+    #         --num_frames 120 \
+    #         --prompt "$(cat "$prompt_file")" \
+    #         --ref "$REF_IMAGE" \
+    #         --motion-score 7 \
+    #         --offload True
+    # fi
 
     # ---------- 2. 找到生成的视频 ----------
 	LOCAL_MP4=$(find "$VIDEO_DIR" -name "*.mp4" | head -1)
