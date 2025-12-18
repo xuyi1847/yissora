@@ -2,7 +2,7 @@ import base64
 import os
 from mimetypes import guess_type
 
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
 
 
 def get_openai_client():
@@ -14,14 +14,10 @@ def get_openai_client():
             raise ValueError("AZURE_OPENAI_KEY is required when AZURE_OPENAI_ENDPOINT is set")
         api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2023-12-01-preview")
         deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-        client = OpenAI(
-            base_url=f"{azure_endpoint}/openai/deployments/{deployment}",
-            api_key=api_key,
-            api_version=api_version,
-        )
+        client = AzureOpenAI(api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint)
         model = deployment
     else:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"), base_url=os.environ.get("OPENAI_BASE_URL"))
         model = os.environ.get("OPENAI_MODEL", "gpt-4o")
     return client, model
 
