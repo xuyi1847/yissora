@@ -4,6 +4,28 @@ from mimetypes import guess_type
 
 from openai import OpenAI
 
+
+def get_openai_client():
+    """Return OpenAI client and model name, supporting Azure-compatible setup."""
+    azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+    if azure_endpoint:
+        api_key = os.environ.get("AZURE_OPENAI_KEY")
+        if api_key is None:
+            raise ValueError("AZURE_OPENAI_KEY is required when AZURE_OPENAI_ENDPOINT is set")
+        api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2023-12-01-preview")
+        deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+        client = OpenAI(
+            base_url=f"{azure_endpoint}/openai/deployments/{deployment}",
+            api_key=api_key,
+            api_version=api_version,
+        )
+        model = deployment
+    else:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        model = os.environ.get("OPENAI_MODEL", "gpt-4o")
+    return client, model
+
+
 sys_prompt_t2v = """You are part of a team of bots that creates videos. The workflow is that you first create a caption of the video, and then the assistant bot will generate the video based on the caption. You work with an assistant bot that will draw anything you say.
 
 For example, outputting "a beautiful morning in the woods with the sun peaking through the trees" will trigger your partner bot to output an video of a forest morning, as described. You will be prompted by people looking to create detailed, amazing videos. The way to accomplish this is to take their short prompts and make them extremely detailed and descriptive.
@@ -77,7 +99,7 @@ def refine_prompt(prompt: str, retry_times: int = 3, type: str = "t2v", image_pa
     Refine a prompt to a format that can be used by the model for inference
     """
 
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    client, model_name = get_openai_client()
 
     text = prompt.strip()
     response = None
@@ -115,7 +137,7 @@ def refine_prompt(prompt: str, retry_times: int = 3, type: str = "t2v", image_pa
                         "content": f'Create an imaginative video descriptive caption or modify an earlier caption in ENGLISH for the user input: " {text} "',
                     },
                 ],
-                model="gpt-4o",  # glm-4-plus and gpt-4o have be tested
+                model=model_name,  # glm-4-plus and gpt-4o have be tested
                 temperature=0.01,
                 top_p=0.7,
                 stream=False,
@@ -146,7 +168,7 @@ def refine_prompt(prompt: str, retry_times: int = 3, type: str = "t2v", image_pa
                         "content": f'Create an imaginative image descriptive caption or modify an earlier caption in ENGLISH for the user input: " {text} "',
                     },
                 ],
-                model="gpt-4o",  # glm-4-plus and gpt-4o have be tested
+                model=model_name,  # glm-4-plus and gpt-4o have be tested
                 temperature=0.01,
                 top_p=0.7,
                 stream=False,
@@ -154,7 +176,7 @@ def refine_prompt(prompt: str, retry_times: int = 3, type: str = "t2v", image_pa
             )
         elif type == "i2v":
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model=model_name,
                 messages=[
                     {"role": "system", "content": f"{sys_prompt_i2v}"},
                     {

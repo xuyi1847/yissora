@@ -8,6 +8,15 @@ OSS_PATH="oss://yisvideo/videos"
 SCRIPT="${BASE_DIR}/scripts/diffusion/inference.py"
 CONFIG="${BASE_DIR}/configs/diffusion/inference/t2i2v_768px.py"
 FIRST_REF="${BASE_DIR}/assets/WechatIMG1176.jpg"
+# 5s @ 16 FPS => 81 frames (4k+1)
+NUM_FRAMES=81
+FPS=16
+# 2x A100: sequence parallel 2, tensor parallel 1; VAE 2-way TP
+CFG_PARALLEL="plugin_config.sp_size=2 plugin_config.tp_size=1 plugin_config_ae.tp_size=2 plugin_config_ae.sp_size=1"
+# For speed, slightly fewer steps; adjust if质量不够
+CFG_SAMPLING="sampling_option.num_steps=40 sampling_option.num_frames=${NUM_FRAMES} sampling_option.aspect_ratio=9:16"
+# 保持 t2i2v 分辨率 768
+CFG_MISC="fps_save=${FPS} motion_score=6"
 mkdir -p "$PROMPT_DIR"
 mkdir -p "$OUT_DIR"
 
@@ -47,20 +56,17 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 72 \
-            --aspect_ratio 9:16 \
-            --ref "$FIRST_REF" \
             --prompt "$(cat "$prompt_file")" \
-            --motion-score 6
+            --ref "$FIRST_REF" \
+            --cfg-options ${CFG_PARALLEL} ${CFG_SAMPLING} ${CFG_MISC}
     else
         # 后续段：使用上一段 last frame 作为 ref
         torchrun --nproc_per_node 2 --standalone \
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 72 \
             --prompt "$(cat "$prompt_file")" \
-            --motion-score 6
+            --cfg-options ${CFG_PARALLEL} ${CFG_SAMPLING} ${CFG_MISC}
     fi
     # else
     #     # 后续段：使用上一段 last frame 作为 ref
@@ -120,4 +126,3 @@ echo "=============================="
 for ((idx=1; idx<i; idx++)); do
     echo "https://yisvideo.oss-cn-shanghai.aliyuncs.com/videos/video${idx}.mp4"
 done
-
