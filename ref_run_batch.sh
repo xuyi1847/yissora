@@ -47,7 +47,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 96 \
+            --num_frames 72 \
             --aspect_ratio 9:16 \
             --ref "$FIRST_REF" \
             --prompt "$(cat "$prompt_file")" \
@@ -58,7 +58,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
-            --num_frames 96 \
+            --num_frames 72 \
             --prompt "$(cat "$prompt_file")" \
             --motion-score 6
     fi
