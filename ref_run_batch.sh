@@ -25,7 +25,6 @@ SAMPLING_ARGS=(
   --sampling_option.aspect_ratio 9:16
   --fps_save "${FPS}"
   --motion_score 6
-  --prompt_refine True
 )
 mkdir -p "$PROMPT_DIR"
 mkdir -p "$OUT_DIR"
