@@ -65,8 +65,8 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$SCRIPT" \
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
+            --cond_type i2v_head \
             --prompt "$(cat "$prompt_file")" \
-            --motion-score 7 \
             --ref "$FIRST_REF" \
             "${PARALLEL_ARGS[@]}" "${SAMPLING_ARGS[@]}"
     else
