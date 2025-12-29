@@ -14,7 +14,7 @@ import websockets
 GPU_ID = "gpu-01"
 
 # 公网中转地址（GPU 内网主动连出去）
-BRIDGE_WS = "ws://115.191.1.112:8000/ws/gpu"
+BRIDGE_WS = "wss://www.ccioi.com/ws/gpu"
 
 # Open-Sora 输出文件（按你当前固定路径）
 LOCAL_VIDEO_PATH = "/data/Open-Sora/outputs/videodemo5/video_256px/prompt_0000.mp4"
