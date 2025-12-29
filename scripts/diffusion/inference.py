@@ -2,10 +2,12 @@ import os
 import time
 import warnings
 from pprint import pformat
-
+import uuid
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
-
+from urllib.parse import urlparse
+from pathlib import Path
+import requests
 import torch
 import torch.distributed as dist
 from colossalai.utils import set_seed
