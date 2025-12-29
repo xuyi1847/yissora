@@ -11,7 +11,7 @@ import os
 # =========================================================
 GPU_ID = "gpu-01"
 
-BRIDGE_WS = "ws://PUBLIC_IP:8000/ws/gpu"
+BRIDGE_WS = "ws://115.191.1.112:8000/ws/gpu"
 
 # torchrun 固定输出路径（按你当前 Open-Sora）
 LOCAL_VIDEO_PATH = "/data/Open-Sora/outputs/videodemo5/video_256px/prompt_0000.mp4"
