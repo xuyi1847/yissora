@@ -7,7 +7,7 @@ OSS_PATH="oss://yisvideo/videos"
 
 SCRIPT="${BASE_DIR}/scripts/diffusion/inference.py"
 CONFIG="${BASE_DIR}/configs/diffusion/inference/t2i2v_768px.py"
-FIRST_REF="${BASE_DIR}/assets/WechatIMG1176.jpg"
+FIRST_REF="${BASE_DIR}/assets/demo12_11_10.png"
 # 5s @ 16 FPS => 81 frames (4k+1)
 NUM_FRAMES=81
 FPS=16
@@ -66,6 +66,7 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
             "$CONFIG" \
             --save-dir "$VIDEO_DIR" \
             --prompt "$(cat "$prompt_file")" \
+            --motion-score 7 \
             --ref "$FIRST_REF" \
             "${PARALLEL_ARGS[@]}" "${SAMPLING_ARGS[@]}"
     else
