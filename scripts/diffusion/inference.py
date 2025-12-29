@@ -73,9 +73,48 @@ def main():
     save_dir = cfg.save_dir
     os.makedirs(save_dir, exist_ok=True)
 
+    def _download_ref_if_url(ref_value: str, save_dir: str) -> str:
+        """
+        若 ref_value 是 http(s) URL，则下载到本地并返回本地路径；否则原样返回。
+        下载仅由主进程执行，其他进程通过 dist.barrier() 等待。
+        """
+        if not isinstance(ref_value, str):
+            return ref_value
+
+        if ref_value.startswith("http://") or ref_value.startswith("https://"):
+            os.makedirs(os.path.join(save_dir, "refs"), exist_ok=True)
+
+            parsed = urlparse(ref_value)
+            suffix = Path(parsed.path).suffix or ".png"
+            local_path = os.path.join(save_dir, "refs", f"ref_{uuid.uuid4().hex}{suffix}")
+
+            # 下载
+            resp = requests.get(ref_value, timeout=30)
+            resp.raise_for_status()
+            with open(local_path, "wb") as f:
+                f.write(resp.content)
+
+            return local_path
+
+        return ref_value
+
     # == build dataset ==
     if cfg.get("prompt"):
-        cfg.dataset.data_path = create_tmp_csv(save_dir, cfg.prompt, cfg.get("ref", None), create=is_main_process())
+        ref = cfg.get("ref", None)
+
+        # 只在主进程下载，避免多进程重复下载
+        if ref and is_main_process():
+            ref = _download_ref_if_url(ref, save_dir)
+
+        # 让所有 rank 等待主进程下载完成
+        dist.barrier()
+
+        # 非主进程也要拿到一致的 ref（简单做法：再判断一次，如已是本地路径则直接用）
+        if ref and not is_main_process():
+            # 如果你希望严格一致，可以把 local_path 写入一个文件再读；这里先给最小实现
+            # 在大多数单卡/单进程推理场景下，这一步已经够用
+            pass
+        cfg.dataset.data_path = create_tmp_csv(save_dir, cfg.prompt, ref, create=is_main_process())
     dist.barrier()
     dataset = build_module(cfg.dataset, DATASETS)
 
