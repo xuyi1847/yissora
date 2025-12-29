@@ -118,8 +118,6 @@ for prompt_file in ${PROMPT_DIR}/*.txt; do
 
     # ---------- 4. 上传视频 ----------
     OSS_FILE="video${i}.mp4"
-    /data/ossutil64 cp "$LOCAL_MP4" "$OSS_PATH/$OSS_FILE" -f
-
     echo "📤 视频 ${i} 上传完成:"
     echo "https://yisvideo.oss-cn-shanghai.aliyuncs.com/videos/${OSS_FILE}"
     echo
