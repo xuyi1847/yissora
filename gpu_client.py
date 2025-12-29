@@ -24,20 +24,12 @@ OSSUTIL_BIN = "/data/ossutil64"
 OSS_BUCKET = "yisvideo"
 OSS_ENDPOINT = "oss-cn-shanghai.aliyuncs.com"
 
-
+import asyncio
+import threading
 # =========================================================
 # 子进程流式执行并回传日志
 # =========================================================
-async def stream_process_and_send_logs(
-    ws,
-    task_id: str,
-    command: str,
-    prefix: str = ""
-) -> int:
-    """
-    运行 command，逐行读取 stdout(含stderr合并)，并通过 ws 发送 TASK_LOG
-    返回 returncode
-    """
+async def stream_process_and_send_logs(ws, task_id, command, prefix=""):
     print(f"⚙️ EXEC: {command}")
 
     proc = subprocess.Popen(
@@ -49,22 +41,25 @@ async def stream_process_and_send_logs(
         bufsize=1
     )
 
-    assert proc.stdout is not None
+    loop = asyncio.get_running_loop()
 
-    for line in proc.stdout:
-        line = line.rstrip()
-        local_line = f"{prefix}{line}" if prefix else line
-        print(f"[GPU] {local_line}")
+    def reader():
+        for line in proc.stdout:
+            line = line.rstrip()
+            asyncio.run_coroutine_threadsafe(
+                ws.send(json.dumps({
+                    "type": "TASK_LOG",
+                    "task_id": task_id,
+                    "stream": "stdout",
+                    "line": f"{prefix}{line}"
+                })),
+                loop
+            )
 
-        # 实时推送日志到中转
-        await ws.send(json.dumps({
-            "type": "TASK_LOG",
-            "task_id": task_id,
-            "stream": "stdout",
-            "line": local_line
-        }))
+    t = threading.Thread(target=reader, daemon=True)
+    t.start()
 
-    return proc.wait()
+    return await loop.run_in_executor(None, proc.wait)
 
 
 # =========================================================
@@ -73,7 +68,11 @@ async def stream_process_and_send_logs(
 async def run_gpu_client():
     while True:
         try:
-            async with websockets.connect(BRIDGE_WS, ping_interval=None) as ws:
+            async with websockets.connect(
+                    BRIDGE_WS,
+                    ping_interval=10,
+                    ping_timeout=10
+                ) as ws:
                 # ---------- 注册 ----------
                 await ws.send(json.dumps({"gpu_id": GPU_ID}))
                 print(f"🔥 GPU registered: {GPU_ID}")
