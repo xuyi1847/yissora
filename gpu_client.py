@@ -4,30 +4,30 @@ import os
 import shlex
 import subprocess
 import time
+import threading
 from typing import Optional
 
 import websockets
 
 # =========================================================
-# 配置
+# 基础配置
 # =========================================================
 GPU_ID = "gpu-01"
 
-# 公网中转地址（GPU 内网主动连出去）
+# GPU 机器主动连公网 Bridge
 BRIDGE_WS = "wss://www.ccioi.com/ws/gpu"
 
-# Open-Sora 输出文件（按你当前固定路径）
+# Open-Sora 固定输出路径（与你当前保持一致）
 LOCAL_VIDEO_PATH = "/data/Open-Sora/outputs/videodemo5/video_256px/prompt_0000.mp4"
 
-# OSS 配置
+# OSS 配置（只负责上传，不负责权限）
 OSSUTIL_BIN = "/data/ossutil64"
 OSS_BUCKET = "yisvideo"
 OSS_ENDPOINT = "oss-cn-shanghai.aliyuncs.com"
 
-import asyncio
-import threading
+
 # =========================================================
-# 子进程流式执行并回传日志
+# 子进程：流式执行 + 日志回传
 # =========================================================
 async def stream_process_and_send_logs(ws, task_id, command, prefix=""):
     print(f"⚙️ EXEC: {command}")
@@ -63,23 +63,23 @@ async def stream_process_and_send_logs(ws, task_id, command, prefix=""):
 
 
 # =========================================================
-# 主循环（断线重连）
+# GPU 主循环（断线自动重连）
 # =========================================================
 async def run_gpu_client():
     while True:
         try:
             async with websockets.connect(
-                    BRIDGE_WS,
-                    ping_interval=10,
-                    ping_timeout=10
-                ) as ws:
+                BRIDGE_WS,
+                ping_interval=10,
+                ping_timeout=10,
+            ) as ws:
                 # ---------- 注册 ----------
-                await ws.send(json.dumps({"gpu_id": GPU_ID}))
+                await ws.send(json.dumps({
+                    "gpu_id": GPU_ID
+                }))
                 print(f"🔥 GPU registered: {GPU_ID}")
 
                 # ---------- 心跳 ----------
-                heartbeat_task: Optional[asyncio.Task] = None
-
                 async def heartbeat():
                     while True:
                         await ws.send(json.dumps({
@@ -91,56 +91,64 @@ async def run_gpu_client():
                 heartbeat_task = asyncio.create_task(heartbeat())
 
                 try:
-                    # ---------- 等待任务 ----------
                     while True:
                         msg = json.loads(await ws.recv())
 
                         if msg.get("type") != "exec_command":
                             continue
 
+                        # =================================================
+                        # 接收 Bridge 下发任务
+                        # =================================================
                         task_id = msg["task_id"]
                         torch_command = msg["command"]
 
-                        # 1) torchrun 任务日志流
+                        # ✅ 关键：原样接收，不解析
+                        user_id = msg.get("user_id")
+                        prompt = msg.get("prompt")
+
+                        # =================================================
+                        # 1️⃣ 执行 torchrun（日志流式回传）
+                        # =================================================
                         rc = await stream_process_and_send_logs(
                             ws=ws,
                             task_id=task_id,
-                            command=torch_command,
-                            prefix=""
+                            command=torch_command
                         )
 
                         if rc != 0:
-                            fail_payload = {
+                            await ws.send(json.dumps({
                                 "type": "task_finished",
                                 "task_id": task_id,
+                                "user_id": user_id,
+                                "prompt": prompt,
                                 "status": "failed",
                                 "error": "torchrun failed",
                                 "returncode": rc
-                            }
-                            print("📤 Sending task_finished (failed):")
-                            print(json.dumps(fail_payload, ensure_ascii=False, indent=2))
-                            await ws.send(json.dumps(fail_payload))
+                            }))
                             continue
 
-                        # 2) 检查输出文件存在
+                        # =================================================
+                        # 2️⃣ 校验输出文件
+                        # =================================================
                         if not os.path.exists(LOCAL_VIDEO_PATH):
-                            fail_payload = {
+                            await ws.send(json.dumps({
                                 "type": "task_finished",
                                 "task_id": task_id,
+                                "user_id": user_id,
+                                "prompt": prompt,
                                 "status": "failed",
                                 "error": f"output video not found: {LOCAL_VIDEO_PATH}"
-                            }
-                            print("📤 Sending task_finished (failed):")
-                            print(json.dumps(fail_payload, ensure_ascii=False, indent=2))
-                            await ws.send(json.dumps(fail_payload))
+                            }))
                             continue
 
-                        # 3) 动态 OSS 路径 & URL
+                        # =================================================
+                        # 3️⃣ 上传 OSS
+                        # =================================================
                         oss_object_path = f"videos/{task_id}.mp4"
                         oss_dest = f"oss://{OSS_BUCKET}/{oss_object_path}"
                         public_url = f"https://{OSS_BUCKET}.{OSS_ENDPOINT}/{oss_object_path}"
 
-                        # 4) ossutil 上传日志流
                         oss_cmd = (
                             f"{OSSUTIL_BIN} cp "
                             f"{shlex.quote(LOCAL_VIDEO_PATH)} "
@@ -155,22 +163,25 @@ async def run_gpu_client():
                         )
 
                         if oss_rc != 0:
-                            fail_payload = {
+                            await ws.send(json.dumps({
                                 "type": "task_finished",
                                 "task_id": task_id,
+                                "user_id": user_id,
+                                "prompt": prompt,
                                 "status": "failed",
                                 "error": "OSS upload failed",
                                 "returncode": oss_rc
-                            }
-                            print("📤 Sending task_finished (failed):")
-                            print(json.dumps(fail_payload, ensure_ascii=False, indent=2))
-                            await ws.send(json.dumps(fail_payload))
+                            }))
                             continue
 
-                        # 5) 成功回传
-                        ok_payload = {
+                        # =================================================
+                        # 4️⃣ 成功回传（Bridge 会做 history / 计费）
+                        # =================================================
+                        await ws.send(json.dumps({
                             "type": "task_finished",
                             "task_id": task_id,
+                            "user_id": user_id,
+                            "prompt": prompt,
                             "status": "success",
                             "returncode": 0,
                             "output": {
@@ -178,23 +189,21 @@ async def run_gpu_client():
                                 "oss_path": oss_dest,
                                 "public_url": public_url
                             }
-                        }
-
-                        print("📤 Sending task_finished (success):")
-                        print(json.dumps(ok_payload, ensure_ascii=False, indent=2))
-                        await ws.send(json.dumps(ok_payload))
+                        }))
 
                         print(f"✅ [{task_id}] Done → {public_url}")
 
                 finally:
-                    if heartbeat_task:
-                        heartbeat_task.cancel()
-                        print("🧹 Cleanup heartbeat task")
+                    heartbeat_task.cancel()
+                    print("🧹 Cleanup heartbeat task")
 
         except Exception as e:
-            print(f"🔌 WS error/disconnected, retry in 3s. error={e}")
+            print(f"🔌 WS disconnected / error: {e} → retry in 3s")
             await asyncio.sleep(3)
 
 
+# =========================================================
+# 入口
+# =========================================================
 if __name__ == "__main__":
     asyncio.run(run_gpu_client())
