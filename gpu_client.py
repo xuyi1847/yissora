@@ -16,7 +16,7 @@ GPU_ID = "gpu-01"
 
 # GPU 机器主动连公网 Bridge
 BRIDGE_WS = "wss://www.ccioi.com/ws/gpu"
-SERVER_BASE = "https://www.ccioi.com"
+SERVER_BASE = "https://www.ccioi.com/api"
 # Open-Sora 固定输出路径（与你当前保持一致）
 LOCAL_VIDEO_PATH = "/data/Open-Sora/outputs/videodemo5/video_256px/prompt_0000.mp4"
 
