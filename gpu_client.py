@@ -250,17 +250,22 @@ async def run_gpu_client():
                             )
 
                             public_url = result.get("public_url")
-
+                            
+                            print(f"✅ [{task_id}] Done → {public_url}")
                             await ws.send(
                                 json.dumps(
                                     {
-                                        "type": "task_finished",
+                                       "type": "task_finished",
                                         "task_id": task_id,
                                         "user_id": user_id,
                                         "prompt": prompt,
                                         "status": "success",
                                         "returncode": 0,
-                                        "public_url": public_url,
+                                        "output": {
+                                            "local_path": "",
+                                            "oss_path": "",
+                                            "public_url": public_url
+                                        }
                                     }
                                 )
                             )
@@ -280,25 +285,6 @@ async def run_gpu_client():
                                     }
                                 )
                             )
-
-                        # =================================================
-                        # 4️⃣ 成功回传（Bridge 会做 history / 计费）
-                        # =================================================
-                        await ws.send(json.dumps({
-                            "type": "task_finished",
-                            "task_id": task_id,
-                            "user_id": user_id,
-                            "prompt": prompt,
-                            "status": "success",
-                            "returncode": 0,
-                            "output": {
-                                "local_path": LOCAL_VIDEO_PATH,
-                                "oss_path": oss_dest,
-                                "public_url": public_url
-                            }
-                        }))
-
-                        print(f"✅ [{task_id}] Done → {public_url}")
 
                 finally:
                     heartbeat_task.cancel()
