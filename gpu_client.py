@@ -67,6 +67,14 @@ async def stream_process_and_send_logs(ws, task_id, command, prefix=""):
 
     return await loop.run_in_executor(None, proc.wait)
 
+async def send_task_log(ws, task_id: str, line: str):
+    await ws.send(json.dumps({
+        "type": "TASK_LOG",
+        "task_id": task_id,
+        "stream": "stdout",
+        "line": line
+    }))
+
 # =========================================================
 # HTTP 上传到 Server（关键）
 # =========================================================
@@ -256,10 +264,22 @@ def _plan_v2v_segments(torch_command: str) -> Optional[dict]:
     fps_save = int(fps_save_str) if fps_save_str else cfg_defaults.get("fps_save")
 
     if not num_frames or not fps_save:
-        return None
+        return {
+            "num_frames": num_frames,
+            "fps_save": fps_save,
+            "config_path": config_path,
+            "defaults": cfg_defaults,
+            "eligible": False,
+        }
 
     if num_frames <= fps_save * 5:
-        return None
+        return {
+            "num_frames": num_frames,
+            "fps_save": fps_save,
+            "config_path": config_path,
+            "defaults": cfg_defaults,
+            "eligible": False,
+        }
 
     max_frames = _align_frames(int(fps_save * 5))
     segments = max(2, math.ceil(num_frames / max_frames))
@@ -271,6 +291,9 @@ def _plan_v2v_segments(torch_command: str) -> Optional[dict]:
         "max_frames": max_frames,
         "segments": segments,
         "duration_seconds": duration_seconds,
+        "config_path": config_path,
+        "defaults": cfg_defaults,
+        "eligible": True,
     }
 
 
@@ -282,7 +305,14 @@ async def _run_segmented_v2v(
 ):
     tokens = shlex.split(torch_command)
     plan = _plan_v2v_segments(torch_command)
-    if not plan:
+    if not plan or not plan.get("eligible"):
+        await send_task_log(
+            ws,
+            task_id,
+            f"[plan] eligible=false save_dir={save_dir} config={plan.get('config_path') if plan else None} "
+            f"num_frames={plan.get('num_frames') if plan else None} fps={plan.get('fps_save') if plan else None} "
+            f"defaults={plan.get('defaults') if plan else None}"
+        )
         rc = await stream_process_and_send_logs(
             ws=ws,
             task_id=task_id,
@@ -294,6 +324,14 @@ async def _run_segmented_v2v(
         if not video_path:
             return 1, None, f"output video not found under save_dir: {save_dir}"
         return 0, video_path, None
+
+    await send_task_log(
+        ws,
+        task_id,
+        f"[plan] eligible=true save_dir={save_dir} config={plan['config_path']} defaults={plan['defaults']} "
+        f"fps={plan['fps_save']} frames={plan['num_frames']} max_frames={plan['max_frames']} "
+        f"segments={plan['segments']} duration={plan['duration_seconds']:.2f}s"
+    )
 
     segment_paths = []
     for idx in range(plan["segments"]):
@@ -308,6 +346,7 @@ async def _run_segmented_v2v(
             _set_flag(seg_tokens, "--ref", segment_paths[-1])
 
         seg_command = " ".join(shlex.quote(t) for t in seg_tokens)
+        await send_task_log(ws, task_id, f"[seg {idx+1}/{plan['segments']}] cmd: {seg_command}")
         rc = await stream_process_and_send_logs(
             ws=ws,
             task_id=task_id,
@@ -321,6 +360,7 @@ async def _run_segmented_v2v(
         if not seg_video:
             return 1, None, f"output video not found under save_dir: {seg_save_dir}"
         segment_paths.append(seg_video)
+        await send_task_log(ws, task_id, f"[seg {idx+1}/{plan['segments']}] output: {seg_video}")
 
     # 拼接视频
     concat_dir = os.path.join(save_dir, "segments", task_id)
@@ -337,6 +377,7 @@ async def _run_segmented_v2v(
         # Fallback: approximate by fps and frames
         approx = plan["max_frames"] / float(plan["fps_save"])
         durations = [approx] * len(segment_paths)
+        await send_task_log(ws, task_id, f"[stitch] ffprobe missing, fallback duration={approx:.3f}s")
 
     fade = STITCH_CROSSFADE_SEC
     inputs = " ".join(f"-i {shlex.quote(p)}" for p in segment_paths)
@@ -351,7 +392,7 @@ async def _run_segmented_v2v(
     acc = durations[0]
     for i in range(2, len(segment_paths)):
         acc += durations[i - 1]
-        offset = max(0.0, acc - fade * i)
+        offset = max(0.0, acc - fade * (i - 1))
         filter_parts.append(
             f"[x{i-1}][v{i}]xfade=transition=fade:duration={fade}:offset={offset}[x{i}]"
         )
@@ -370,6 +411,7 @@ async def _run_segmented_v2v(
         f"-map {map_tag} -r {plan['fps_save']} -t {plan['duration_seconds']:.3f} "
         f"{shlex.quote(stitched_path)}"
     )
+    await send_task_log(ws, task_id, f"[stitch] cmd: {ffmpeg_cmd}")
     rc = await stream_process_and_send_logs(
         ws=ws,
         task_id=task_id,
