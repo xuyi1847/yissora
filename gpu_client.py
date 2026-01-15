@@ -164,6 +164,22 @@ def _parse_flag_value(tokens: list[str], flags: list[str]) -> Optional[str]:
     return None
 
 
+def _parse_prompt_segments(prompt: Optional[str]) -> list[str]:
+    if not prompt:
+        return []
+    parts = [p.strip() for p in prompt.split("<<>>") if p.strip()]
+    return parts
+
+
+def _get_flag_value(tokens: list[str], flag: str) -> Optional[str]:
+    for i, tok in enumerate(tokens):
+        if tok == flag and i + 1 < len(tokens):
+            return tokens[i + 1]
+        if tok.startswith(flag + "="):
+            return tok.split("=", 1)[1]
+    return None
+
+
 def _set_flag(tokens: list[str], flag: str, value: str) -> None:
     for i, tok in enumerate(tokens):
         if tok == flag and i + 1 < len(tokens):
@@ -182,6 +198,15 @@ def _find_config_path(tokens: list[str]) -> Optional[str]:
                 if not tokens[j].startswith("-"):
                     return tokens[j]
     return None
+
+
+def _is_768px_config(config_path: Optional[str], tokens: list[str]) -> bool:
+    if config_path and "768px" in config_path:
+        return True
+    resolution = _parse_flag_value(tokens, ["--sampling_option.resolution", "--sampling-option.resolution"])
+    if resolution and "768" in resolution:
+        return True
+    return False
 
 
 def _parse_config_defaults(config_path: str) -> dict:
@@ -258,10 +283,12 @@ def _plan_v2v_segments(torch_command: str) -> Optional[dict]:
     config_path = _find_config_path(tokens)
     if config_path and not os.path.isabs(config_path):
         config_path = os.path.join(os.getcwd(), config_path)
+    is_768 = _is_768px_config(config_path, tokens)
     cfg_defaults = _parse_config_defaults(config_path) if config_path else {}
 
     num_frames = int(num_frames_str) if num_frames_str else cfg_defaults.get("num_frames")
     fps_save = int(fps_save_str) if fps_save_str else cfg_defaults.get("fps_save")
+    segment_seconds = 3 if is_768 else 5
 
     if not num_frames or not fps_save:
         return {
@@ -269,19 +296,23 @@ def _plan_v2v_segments(torch_command: str) -> Optional[dict]:
             "fps_save": fps_save,
             "config_path": config_path,
             "defaults": cfg_defaults,
+            "segment_seconds": segment_seconds,
+            "is_768": is_768,
             "eligible": False,
         }
 
-    if num_frames <= fps_save * 5:
+    if num_frames <= fps_save * segment_seconds:
         return {
             "num_frames": num_frames,
             "fps_save": fps_save,
             "config_path": config_path,
             "defaults": cfg_defaults,
+            "segment_seconds": segment_seconds,
+            "is_768": is_768,
             "eligible": False,
         }
 
-    max_frames = _align_frames(int(fps_save * 5))
+    max_frames = _align_frames(int(fps_save * segment_seconds))
     segments = max(2, math.ceil(num_frames / max_frames))
     duration_seconds = num_frames / float(fps_save)
 
@@ -293,6 +324,9 @@ def _plan_v2v_segments(torch_command: str) -> Optional[dict]:
         "duration_seconds": duration_seconds,
         "config_path": config_path,
         "defaults": cfg_defaults,
+        "segment_seconds": segment_seconds,
+        "is_768": is_768,
+        "segment_cond_type": "v2v_tail_easy" if is_768 else "v2v_tail",
         "eligible": True,
     }
 
@@ -311,6 +345,7 @@ async def _run_segmented_v2v(
             task_id,
             f"[plan] eligible=false save_dir={save_dir} config={plan.get('config_path') if plan else None} "
             f"num_frames={plan.get('num_frames') if plan else None} fps={plan.get('fps_save') if plan else None} "
+            f"segment_seconds={plan.get('segment_seconds') if plan else None} is_768={plan.get('is_768') if plan else None} "
             f"defaults={plan.get('defaults') if plan else None}"
         )
         rc = await stream_process_and_send_logs(
@@ -330,8 +365,14 @@ async def _run_segmented_v2v(
         task_id,
         f"[plan] eligible=true save_dir={save_dir} config={plan['config_path']} defaults={plan['defaults']} "
         f"fps={plan['fps_save']} frames={plan['num_frames']} max_frames={plan['max_frames']} "
-        f"segments={plan['segments']} duration={plan['duration_seconds']:.2f}s"
+        f"segments={plan['segments']} duration={plan['duration_seconds']:.2f}s "
+        f"segment_seconds={plan['segment_seconds']} is_768={plan['is_768']} cond_type={plan['segment_cond_type']}"
     )
+
+    prompt_value = _get_flag_value(tokens, "--prompt")
+    prompt_segments = _parse_prompt_segments(prompt_value)
+    if prompt_segments:
+        await send_task_log(ws, task_id, f"[plan] prompt_segments={len(prompt_segments)}")
 
     segment_paths = []
     for idx in range(plan["segments"]):
@@ -340,9 +381,12 @@ async def _run_segmented_v2v(
         os.makedirs(seg_save_dir, exist_ok=True)
         _set_flag(seg_tokens, "--save-dir", seg_save_dir)
         _set_flag(seg_tokens, "--sampling_option.num_frames", str(plan["max_frames"]))
+        if prompt_segments:
+            seg_prompt = prompt_segments[min(idx, len(prompt_segments) - 1)]
+            _set_flag(seg_tokens, "--prompt", seg_prompt)
 
         if idx > 0:
-            _set_flag(seg_tokens, "--cond_type", "v2v_tail")
+            _set_flag(seg_tokens, "--cond_type", plan["segment_cond_type"])
             _set_flag(seg_tokens, "--ref", segment_paths[-1])
 
         seg_command = " ".join(shlex.quote(t) for t in seg_tokens)
