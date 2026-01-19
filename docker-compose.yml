@@ -1,0 +1,32 @@
+services:
+  opensora-gpu-client:
+    build: .
+    image: opensora-gpu-client:latest
+    container_name: opensora-gpu-client
+    environment:
+      GPU_ID: ${GPU_ID:-gpu-01}
+      BRIDGE_WS: ${BRIDGE_WS:-wss://www.ccioi.com/ws/gpu}
+      SERVER_BASE: ${SERVER_BASE:-https://www.ccioi.com/api}
+      LOCAL_VIDEO_PATH: ${LOCAL_VIDEO_PATH:-/data/Open-Sora/outputs/videodemo5/video_256px/prompt_0000.mp4}
+      OSSUTIL_BIN: ${OSSUTIL_BIN:-/data/ossutil64}
+      OSS_BUCKET: ${OSS_BUCKET:-yisvideo}
+      OSS_ENDPOINT: ${OSS_ENDPOINT:-oss-cn-shanghai.aliyuncs.com}
+      STITCH_CROSSFADE_SEC: ${STITCH_CROSSFADE_SEC:-0.5}
+      STITCH_ENABLE_INTERP: ${STITCH_ENABLE_INTERP:-false}
+      STITCH_INTERP_FPS: ${STITCH_INTERP_FPS:-32}
+      SEGMENT_MAX_FRAMES_768PX: ${SEGMENT_MAX_FRAMES_768PX:-74}
+    volumes:
+      - ./ckpts:/app/ckpts
+      - ./outputs:/app/outputs
+      - ./configs:/app/configs
+      - ./assets:/app/assets
+      - ./prompts:/app/prompts
+    shm_size: "16gb"
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

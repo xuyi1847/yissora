@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.git/
+.gitignore
+.env
+outputs/
+ckpts/
+logs/
+wandb/
+*.safetensors
+*.pt
+*.pth

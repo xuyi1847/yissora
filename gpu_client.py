@@ -11,26 +11,29 @@ import websockets
 import requests
 import math
 # =========================================================
-# 基础配置
+# 基础配置（可用环境变量覆盖）
 # =========================================================
-GPU_ID = "gpu-01"
+GPU_ID = os.getenv("GPU_ID", "gpu-01")
 
 # GPU 机器主动连公网 Bridge
-BRIDGE_WS = "wss://www.ccioi.com/ws/gpu"
-SERVER_BASE = "https://www.ccioi.com/api"
+BRIDGE_WS = os.getenv("BRIDGE_WS", "wss://www.ccioi.com/ws/gpu")
+SERVER_BASE = os.getenv("SERVER_BASE", "https://www.ccioi.com/api")
 # Open-Sora 固定输出路径（与你当前保持一致）
-LOCAL_VIDEO_PATH = "/data/Open-Sora/outputs/videodemo5/video_256px/prompt_0000.mp4"
+LOCAL_VIDEO_PATH = os.getenv(
+    "LOCAL_VIDEO_PATH",
+    "/data/Open-Sora/outputs/videodemo5/video_256px/prompt_0000.mp4",
+)
 
 # OSS 配置（只负责上传，不负责权限）
-OSSUTIL_BIN = "/data/ossutil64"
-OSS_BUCKET = "yisvideo"
-OSS_ENDPOINT = "oss-cn-shanghai.aliyuncs.com"
+OSSUTIL_BIN = os.getenv("OSSUTIL_BIN", "/data/ossutil64")
+OSS_BUCKET = os.getenv("OSS_BUCKET", "yisvideo")
+OSS_ENDPOINT = os.getenv("OSS_ENDPOINT", "oss-cn-shanghai.aliyuncs.com")
 
 # 拼接配置
-STITCH_CROSSFADE_SEC = 0.5
-STITCH_ENABLE_INTERP = False
-STITCH_INTERP_FPS = 32
-SEGMENT_MAX_FRAMES_768PX = 74
+STITCH_CROSSFADE_SEC = float(os.getenv("STITCH_CROSSFADE_SEC", "0.5"))
+STITCH_ENABLE_INTERP = os.getenv("STITCH_ENABLE_INTERP", "false").lower() == "true"
+STITCH_INTERP_FPS = int(os.getenv("STITCH_INTERP_FPS", "32"))
+SEGMENT_MAX_FRAMES_768PX = int(os.getenv("SEGMENT_MAX_FRAMES_768PX", "74"))
 
 
 # =========================================================
