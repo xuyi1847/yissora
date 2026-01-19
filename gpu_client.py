@@ -30,6 +30,7 @@ OSS_ENDPOINT = "oss-cn-shanghai.aliyuncs.com"
 STITCH_CROSSFADE_SEC = 0.5
 STITCH_ENABLE_INTERP = False
 STITCH_INTERP_FPS = 32
+SEGMENT_MAX_FRAMES_768PX = 90
 
 
 # =========================================================
@@ -301,6 +302,17 @@ def _plan_v2v_segments(torch_command: str) -> Optional[dict]:
             "eligible": False,
         }
 
+    if is_768 and num_frames <= SEGMENT_MAX_FRAMES_768PX:
+        return {
+            "num_frames": num_frames,
+            "fps_save": fps_save,
+            "config_path": config_path,
+            "defaults": cfg_defaults,
+            "segment_seconds": segment_seconds,
+            "is_768": is_768,
+            "eligible": False,
+        }
+
     if num_frames <= fps_save * segment_seconds:
         return {
             "num_frames": num_frames,
@@ -312,7 +324,10 @@ def _plan_v2v_segments(torch_command: str) -> Optional[dict]:
             "eligible": False,
         }
 
-    max_frames = _align_frames(int(fps_save * segment_seconds))
+    if is_768:
+        max_frames = SEGMENT_MAX_FRAMES_768PX
+    else:
+        max_frames = _align_frames(int(fps_save * segment_seconds))
     segments = max(2, math.ceil(num_frames / max_frames))
     duration_seconds = num_frames / float(fps_save)
 
