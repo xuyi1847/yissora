@@ -30,7 +30,7 @@ OSS_ENDPOINT = "oss-cn-shanghai.aliyuncs.com"
 STITCH_CROSSFADE_SEC = 0.5
 STITCH_ENABLE_INTERP = False
 STITCH_INTERP_FPS = 32
-SEGMENT_MAX_FRAMES_768PX = 90
+SEGMENT_MAX_FRAMES_768PX = 74
 
 
 # =========================================================
