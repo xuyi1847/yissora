@@ -10,6 +10,10 @@ from typing import Optional
 import websockets
 import requests
 import math
+try:
+    import oss2
+except Exception:  # pragma: no cover - optional import for runtime env
+    oss2 = None
 # =========================================================
 # 基础配置（可用环境变量覆盖）
 # =========================================================
@@ -28,6 +32,9 @@ LOCAL_VIDEO_PATH = os.getenv(
 OSSUTIL_BIN = os.getenv("OSSUTIL_BIN", "/data/ossutil64")
 OSS_BUCKET = os.getenv("OSS_BUCKET", "yisvideo")
 OSS_ENDPOINT = os.getenv("OSS_ENDPOINT", "oss-cn-shanghai.aliyuncs.com")
+OSS_ACCESS_KEY_ID = os.getenv("OSS_ACCESS_KEY_ID")
+OSS_ACCESS_KEY_SECRET = os.getenv("OSS_ACCESS_KEY_SECRET")
+OSS_PREFIX = os.getenv("OSS_PREFIX", "videos")
 
 # 拼接配置
 STITCH_CROSSFADE_SEC = float(os.getenv("STITCH_CROSSFADE_SEC", "0.5"))
@@ -80,29 +87,26 @@ async def send_task_log(ws, task_id: str, line: str):
     }))
 
 # =========================================================
-# HTTP 上传到 Server（关键）
+# OSS 上传（SDK）
 # =========================================================
-def upload_video_to_server(
+def upload_video_to_oss(
     task_id: str,
-    user_id: str,
-    prompt: Optional[str],
     video_path: str,
-):
-    url = f"{SERVER_BASE}/gpu/upload"
+) -> dict:
+    if not OSS_ACCESS_KEY_ID or not OSS_ACCESS_KEY_SECRET:
+        raise RuntimeError("OSS credentials missing: set OSS_ACCESS_KEY_ID/OSS_ACCESS_KEY_SECRET")
+    if not oss2:
+        raise RuntimeError("oss2 not installed; please add oss2 to runtime dependencies")
 
-    with open(video_path, "rb") as f:
-        files = {
-            "file": ("video.mp4", f, "video/mp4")
-        }
-        data = {
-            "task_id": task_id,
-            "user_id": user_id,
-            "prompt": prompt or "",
-        }
-
-        resp = requests.post(url, data=data, files=files, timeout=600)
-        resp.raise_for_status()
-        return resp.json()
+    auth = oss2.Auth(OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET)
+    bucket = oss2.Bucket(auth, f"https://{OSS_ENDPOINT}", OSS_BUCKET)
+    object_key = f"{OSS_PREFIX}/{task_id}.mp4"
+    bucket.put_object_from_file(object_key, video_path)
+    public_url = f"https://{OSS_BUCKET}.{OSS_ENDPOINT}/{object_key}"
+    return {
+        "oss_path": object_key,
+        "public_url": public_url,
+    }
 
 import re
 from pathlib import Path
@@ -580,20 +584,16 @@ async def run_gpu_client():
                             continue
 
                         # =================================================
-                        # 3️⃣ 上传 OSS
-                        # =================================================
-                        # =================================================
-                        # 3️⃣ HTTP 上传给 Server
+                        # 3️⃣ OSS 上传（SDK）
                         # =================================================
                         try:
-                            result = upload_video_to_server(
+                            result = upload_video_to_oss(
                                 task_id=task_id,
-                                user_id=user_id,
-                                prompt=prompt,
                                 video_path=video_path,
                             )
 
                             public_url = result.get("public_url")
+                            oss_path = result.get("oss_path")
                             
                             print(f"✅ [{task_id}] Done → {public_url}")
                             await ws.send(
@@ -607,7 +607,7 @@ async def run_gpu_client():
                                         "returncode": 0,
                                         "output": {
                                             "local_path": "",
-                                            "oss_path": "",
+                                            "oss_path": oss_path or "",
                                             "public_url": public_url
                                         }
                                     }

@@ -30,6 +30,7 @@ docker compose up -d --build
 Key runtime settings are controlled via `.env` (or environment variables):
 
 - `GPU_ID`, `BRIDGE_WS`, `SERVER_BASE`
+- `OSS_ACCESS_KEY_ID`, `OSS_ACCESS_KEY_SECRET`, `OSS_BUCKET`, `OSS_ENDPOINT`, `OSS_PREFIX`
 - `SEGMENT_MAX_FRAMES_768PX` (segmentation for 768px jobs)
 - `STITCH_CROSSFADE_SEC`, `STITCH_ENABLE_INTERP`, `STITCH_INTERP_FPS`
 
