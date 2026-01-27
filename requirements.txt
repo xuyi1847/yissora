@@ -15,4 +15,3 @@ pre-commit>=3.5.0
 omegaconf>=2.3.0
 pyarrow
 oss2
-tensornvme
