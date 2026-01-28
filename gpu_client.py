@@ -413,6 +413,26 @@ async def _run_segmented_v2v(
     tokens = shlex.split(torch_command)
     await _maybe_adjust_nproc(tokens, ws, task_id)
     torch_command = " ".join(shlex.quote(t) for t in tokens)
+
+    prompt_value = _get_flag_value(tokens, "--prompt")
+    prompt_segments = _parse_prompt_segments(prompt_value)
+    if prompt_segments:
+        await send_task_log(ws, task_id, f"[plan] prompt_segments={len(prompt_segments)}")
+
+    # 没有分段提示词就不分段拼接
+    if not prompt_segments:
+        rc = await stream_process_and_send_logs(
+            ws=ws,
+            task_id=task_id,
+            command=torch_command
+        )
+        if rc != 0:
+            return rc, None, "torchrun failed"
+        video_path = pick_best_mp4(save_dir)
+        if not video_path:
+            return 1, None, f"output video not found under save_dir: {save_dir}"
+        return 0, video_path, None
+
     plan = _plan_v2v_segments(torch_command)
     if not plan or not plan.get("eligible"):
         await send_task_log(
@@ -443,11 +463,6 @@ async def _run_segmented_v2v(
         f"segments={plan['segments']} duration={plan['duration_seconds']:.2f}s "
         f"segment_seconds={plan['segment_seconds']} is_768={plan['is_768']} cond_type={plan['segment_cond_type']}"
     )
-
-    prompt_value = _get_flag_value(tokens, "--prompt")
-    prompt_segments = _parse_prompt_segments(prompt_value)
-    if prompt_segments:
-        await send_task_log(ws, task_id, f"[plan] prompt_segments={len(prompt_segments)}")
 
     segment_paths = []
     for idx in range(plan["segments"]):
