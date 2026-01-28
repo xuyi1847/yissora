@@ -41,6 +41,7 @@ STITCH_CROSSFADE_SEC = float(os.getenv("STITCH_CROSSFADE_SEC", "0.5"))
 STITCH_ENABLE_INTERP = os.getenv("STITCH_ENABLE_INTERP", "false").lower() == "true"
 STITCH_INTERP_FPS = int(os.getenv("STITCH_INTERP_FPS", "32"))
 SEGMENT_MAX_FRAMES_768PX = int(os.getenv("SEGMENT_MAX_FRAMES_768PX", "74"))
+NPROC_PER_NODE_OVERRIDE = os.getenv("NPROC_PER_NODE_OVERRIDE")
 
 
 # =========================================================
@@ -186,6 +187,56 @@ def _get_flag_value(tokens: list[str], flag: str) -> Optional[str]:
         if tok.startswith(flag + "="):
             return tok.split("=", 1)[1]
     return None
+
+
+def _count_visible_gpus() -> Optional[int]:
+    env_val = os.getenv("CUDA_VISIBLE_DEVICES") or os.getenv("NVIDIA_VISIBLE_DEVICES")
+    if env_val and env_val.lower() != "all":
+        devs = [d for d in env_val.split(",") if d.strip() and d.strip() != "-1"]
+        return len(devs) if devs else 0
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "-L"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+        )
+        lines = [l for l in result.stdout.splitlines() if l.strip().startswith("GPU")]
+        return len(lines)
+    except Exception:
+        return None
+
+
+async def _maybe_adjust_nproc(tokens: list[str], ws, task_id: str) -> None:
+    if NPROC_PER_NODE_OVERRIDE:
+        try:
+            nproc_override = int(NPROC_PER_NODE_OVERRIDE)
+        except ValueError:
+            nproc_override = None
+        if nproc_override and nproc_override > 0:
+            _set_flag(tokens, "--nproc_per_node", str(nproc_override))
+            await send_task_log(
+                ws,
+                task_id,
+                f"[plan] force --nproc_per_node={nproc_override} via NPROC_PER_NODE_OVERRIDE",
+            )
+        return
+
+    nproc = _get_flag_value(tokens, "--nproc_per_node")
+    gpu_count = _count_visible_gpus()
+    if nproc and gpu_count is not None:
+        try:
+            nproc_int = int(nproc)
+        except ValueError:
+            nproc_int = None
+        if nproc_int and gpu_count > 0 and nproc_int > gpu_count:
+            _set_flag(tokens, "--nproc_per_node", str(gpu_count))
+            await send_task_log(
+                ws,
+                task_id,
+                f"[plan] adjust --nproc_per_node {nproc_int} -> {gpu_count} (visible_gpus={gpu_count})",
+            )
 
 
 def _set_flag(tokens: list[str], flag: str, value: str) -> None:
@@ -360,6 +411,8 @@ async def _run_segmented_v2v(
     save_dir: str,
 ):
     tokens = shlex.split(torch_command)
+    await _maybe_adjust_nproc(tokens, ws, task_id)
+    torch_command = " ".join(shlex.quote(t) for t in tokens)
     plan = _plan_v2v_segments(torch_command)
     if not plan or not plan.get("eligible"):
         await send_task_log(
