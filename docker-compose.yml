@@ -18,6 +18,8 @@ services:
       STITCH_ENABLE_INTERP: ${STITCH_ENABLE_INTERP:-false}
       STITCH_INTERP_FPS: ${STITCH_INTERP_FPS:-32}
       SEGMENT_MAX_FRAMES_768PX: ${SEGMENT_MAX_FRAMES_768PX:-74}
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-all}
     volumes:
       - ./ckpts:/app/ckpts
       - ./outputs:/app/outputs
@@ -26,10 +28,4 @@ services:
       - ./prompts:/app/prompts
     shm_size: "16gb"
     restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    runtime: nvidia

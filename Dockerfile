@@ -3,7 +3,8 @@ FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_NO_BUILD_ISOLATION=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
@@ -16,6 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     build-essential \
     libaio-dev \
+    liburing-dev \
+    pkg-config \
     cmake \
     ninja-build \
     && rm -rf /var/lib/apt/lists/*
@@ -29,7 +32,9 @@ RUN python3 -m pip install --upgrade pip && \
     python3 -m pip install --index-url https://download.pytorch.org/whl/cu121 \
       torch==2.4.0 torchvision==0.19.0 && \
     python3 -m pip install -r /tmp/requirements.txt && \
-    python3 -m pip install --no-build-isolation tensornvme && \
+    python3 -m pip uninstall -y tensornvme || true && \
+    python3 -m pip install --no-build-isolation git+https://github.com/hpcaitech/TensorNVMe.git && \
+    python3 -m pip install --no-build-isolation flash-attn && \
     python3 -m pip install websockets requests
 
 COPY . /app
