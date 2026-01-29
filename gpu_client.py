@@ -64,6 +64,7 @@ async def stream_process_and_send_logs(ws, task_id, command, prefix=""):
     def reader():
         for line in proc.stdout:
             line = line.rstrip()
+            print(f"{prefix}{line}")
             asyncio.run_coroutine_threadsafe(
                 ws.send(json.dumps({
                     "type": "TASK_LOG",
@@ -77,7 +78,9 @@ async def stream_process_and_send_logs(ws, task_id, command, prefix=""):
     t = threading.Thread(target=reader, daemon=True)
     t.start()
 
-    return await loop.run_in_executor(None, proc.wait)
+    rc = await loop.run_in_executor(None, proc.wait)
+    print(f"{prefix}process exit code: {rc}")
+    return rc
 
 async def send_task_log(ws, task_id: str, line: str):
     await ws.send(json.dumps({
