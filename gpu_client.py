@@ -176,6 +176,8 @@ def _parse_flag_value(tokens: list[str], flags: list[str]) -> Optional[str]:
 def _parse_prompt_segments(prompt: Optional[str]) -> list[str]:
     if not prompt:
         return []
+    if "<<>>" not in prompt:
+        return []
     parts = [p.strip() for p in prompt.split("<<>>") if p.strip()]
     return parts
 
