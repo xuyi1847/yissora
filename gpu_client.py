@@ -42,6 +42,7 @@ STITCH_ENABLE_INTERP = os.getenv("STITCH_ENABLE_INTERP", "false").lower() == "tr
 STITCH_INTERP_FPS = int(os.getenv("STITCH_INTERP_FPS", "32"))
 SEGMENT_MAX_FRAMES_768PX = int(os.getenv("SEGMENT_MAX_FRAMES_768PX", "74"))
 NPROC_PER_NODE_OVERRIDE = os.getenv("NPROC_PER_NODE_OVERRIDE")
+FORCE_OFFLOAD_MODEL = os.getenv("FORCE_OFFLOAD_MODEL", "false").lower() == "true"
 
 
 # =========================================================
@@ -417,6 +418,9 @@ async def _run_segmented_v2v(
 ):
     tokens = shlex.split(torch_command)
     await _maybe_adjust_nproc(tokens, ws, task_id)
+    if FORCE_OFFLOAD_MODEL:
+        _set_flag(tokens, "--offload_model", "True")
+        await send_task_log(ws, task_id, "[plan] force --offload_model=True")
     torch_command = " ".join(shlex.quote(t) for t in tokens)
 
     prompt_value = _get_flag_value(tokens, "--prompt")

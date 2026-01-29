@@ -34,6 +34,7 @@ Key runtime settings are controlled via `.env` (or environment variables):
 - `SEGMENT_MAX_FRAMES_768PX` (segmentation for 768px jobs)
 - `STITCH_CROSSFADE_SEC`, `STITCH_ENABLE_INTERP`, `STITCH_INTERP_FPS`
 - `NPROC_PER_NODE_OVERRIDE` (force torchrun processes)
+- `FORCE_OFFLOAD_MODEL` (force --offload_model True)
 
 ## Stop
 
