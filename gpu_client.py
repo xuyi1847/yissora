@@ -92,26 +92,29 @@ async def send_task_log(ws, task_id: str, line: str):
     }))
 
 # =========================================================
-# OSS 上传（SDK）
+# HTTP 上传到 Server（关键）
 # =========================================================
-def upload_video_to_oss(
+def upload_video_to_server(
     task_id: str,
+    user_id: str,
+    prompt: Optional[str],
     video_path: str,
-) -> dict:
-    if not OSS_ACCESS_KEY_ID or not OSS_ACCESS_KEY_SECRET:
-        raise RuntimeError("OSS credentials missing: set OSS_ACCESS_KEY_ID/OSS_ACCESS_KEY_SECRET")
-    if not oss2:
-        raise RuntimeError("oss2 not installed; please add oss2 to runtime dependencies")
+):
+    url = f"{SERVER_BASE}/gpu/upload"
 
-    auth = oss2.Auth(OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET)
-    bucket = oss2.Bucket(auth, f"https://{OSS_ENDPOINT}", OSS_BUCKET)
-    object_key = f"{OSS_PREFIX}/{task_id}.mp4"
-    bucket.put_object_from_file(object_key, video_path)
-    public_url = f"https://{OSS_BUCKET}.{OSS_ENDPOINT}/{object_key}"
-    return {
-        "oss_path": object_key,
-        "public_url": public_url,
-    }
+    with open(video_path, "rb") as f:
+        files = {
+            "file": ("video.mp4", f, "video/mp4")
+        }
+        data = {
+            "task_id": task_id,
+            "user_id": user_id,
+            "prompt": prompt or "",
+        }
+
+        resp = requests.post(url, data=data, files=files, timeout=600)
+        resp.raise_for_status()
+        return resp.json()
 
 import re
 from pathlib import Path
@@ -661,17 +664,18 @@ async def run_gpu_client():
                             continue
 
                         # =================================================
-                        # 3️⃣ OSS 上传（SDK）
+                        # 3️⃣ HTTP 上传给 Server（写 meta）
                         # =================================================
                         try:
-                            await send_task_log(ws, task_id, f"[upload] start oss: bucket={OSS_BUCKET} endpoint={OSS_ENDPOINT}")
-                            result = upload_video_to_oss(
+                            await send_task_log(ws, task_id, "[upload] start /gpu/upload")
+                            result = upload_video_to_server(
                                 task_id=task_id,
+                                user_id=user_id,
+                                prompt=prompt,
                                 video_path=video_path,
                             )
 
                             public_url = result.get("public_url")
-                            oss_path = result.get("oss_path")
                             
                             print(f"✅ [{task_id}] Done → {public_url}")
                             await send_task_log(ws, task_id, f"[upload] done: {public_url}")
@@ -686,7 +690,7 @@ async def run_gpu_client():
                                         "returncode": 0,
                                         "output": {
                                             "local_path": "",
-                                            "oss_path": oss_path or "",
+                                            "oss_path": "",
                                             "public_url": public_url
                                         }
                                     }
