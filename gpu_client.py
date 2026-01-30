@@ -664,6 +664,7 @@ async def run_gpu_client():
                         # 3️⃣ OSS 上传（SDK）
                         # =================================================
                         try:
+                            await send_task_log(ws, task_id, f"[upload] start oss: bucket={OSS_BUCKET} endpoint={OSS_ENDPOINT}")
                             result = upload_video_to_oss(
                                 task_id=task_id,
                                 video_path=video_path,
@@ -673,6 +674,7 @@ async def run_gpu_client():
                             oss_path = result.get("oss_path")
                             
                             print(f"✅ [{task_id}] Done → {public_url}")
+                            await send_task_log(ws, task_id, f"[upload] done: {public_url}")
                             await ws.send(
                                 json.dumps(
                                     {
@@ -694,6 +696,7 @@ async def run_gpu_client():
                             print(f"✅ [{task_id}] Uploaded → {public_url}")
 
                         except Exception as e:
+                            await send_task_log(ws, task_id, f"[upload] failed: {e}")
                             await ws.send(
                                 json.dumps(
                                     {

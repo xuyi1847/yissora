@@ -35,6 +35,7 @@ Key runtime settings are controlled via `.env` (or environment variables):
 - `STITCH_CROSSFADE_SEC`, `STITCH_ENABLE_INTERP`, `STITCH_INTERP_FPS`
 - `NPROC_PER_NODE_OVERRIDE` (force torchrun processes)
 - `FORCE_OFFLOAD_MODEL` (force --offload_model True)
+- `MODEL_DOWNLOAD` (hf|modelscope|none), `CKPT_DIR` (default /app/ckpts), `HF_TOKEN` (optional)
 
 ## Stop
 
